@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Arduino / arduino-cli build output
+build/
+*.bin
+*.elf
+*.hex
+*.map
