@@ -116,8 +116,79 @@ your **LED count**.
 1. Copy the `.LED` file to the **root** of a FAT32 microSD card. (If there are
    several, the firmware auto-plays the first one — keep just one to be sure,
    or set `FIXED_FILENAME`.)
-2. Insert the card, wire the board per **[`docs/PINOUT.md`](docs/PINOUT.md)**.
+2. Insert the card, wire the board per the **[Wiring](#wiring-fly-wire)**
+   section below.
 3. Power on. The strip plays your show and loops forever.
+
+---
+
+## Wiring (fly-wire)
+
+Board: **WeMos / LOLIN D1 R32** — an ESP32 in the Arduino-UNO form factor.
+Fly-wire the microSD module (SPI) and the WS2812 strip to the Uno-style headers.
+Most "ESP32 UNO" clones share this mapping — if your silk-screen differs, match
+by **GPIO number**, not by the `Dx` label.
+
+| Function          | D1 R32 pin | ESP32 GPIO | Wire to                         |
+|-------------------|------------|-----------:|---------------------------------|
+| SD — Chip Select  | `D10`      | GPIO5      | microSD `CS` / `SS`             |
+| SD — MOSI         | `D11`      | GPIO23     | microSD `MOSI` / `DI` / `CMD`   |
+| SD — MISO         | `D12`      | GPIO19     | microSD `MISO` / `DO` / `DAT0`  |
+| SD — Clock        | `D13`      | GPIO18     | microSD `SCK` / `CLK`           |
+| SD — Power        | `5V`       | —          | microSD `VCC` (5 V)             |
+| SD — Ground       | `GND`      | —          | microSD `GND`                   |
+| WS2812 — Data     | `D2`       | GPIO26     | strip `DIN` (via 330–470 Ω)     |
+| WS2812 — Power    | `5V`       | —          | strip `+5V`                     |
+| WS2812 — Ground   | `GND`      | —          | strip `GND`                     |
+
+These are the ESP32's default hardware SPI (VSPI) pins, so the sketch just calls
+`SD.begin(5)` — no custom SPI setup. WS2812 data is GPIO26 (a clean,
+output-capable, non-strapping pin).
+
+```
+                    WeMos D1 R32 (ESP32)
+                 ┌───────────────────────────┐
+   USB / 5V ───▶ │ [USB]                 5V ──┼───────┬─────────────┬───────────►  +5V rail
+                 │                           │       │             │
+                 │                  D13/IO18 ┼──────────────┐      │
+                 │                  D12/IO19 ┼────────────┐ │      │
+                 │                  D11/IO23 ┼──────────┐ │ │      │
+                 │                   D10/IO5 ┼────────┐ │ │ │      │
+                 │                   D2/IO26 ┼──┐     │ │ │ │      │
+                 │                       GND ┼──┼─────┼─┼─┼─┼──┬───┼───────┬─────►  GND rail
+                 └───────────────────────────┘  │     │ │ │ │  │   │       │
+                                  330–470 Ω      │  ┌──┘ │ │ │  │   │       │
+                          ┌────/\/\/\────────────┘  │ ┌──┘ │ │  │   │       │
+                          │                         │ │ ┌──┘ │  │   │       │
+                          ▼ DIN                     ▼ ▼ ▼    ▼  ▼   │       │
+                  ┌───────────────┐         ┌──────────────────────┴──┐    │
+                  │   WS2812      │         │   microSD module (SPI)   │    │
+                  │  +5V  DIN GND │         │  CS  CLK DO  DI   GND VCC│◀───┘ VCC=5V
+                  └───┬───────┬───┘         └──────────────────────────┘
+                  +5V─┘       └─GND            CS =D10/IO5   DO =D12/IO19
+                      │       │                CLK=D13/IO18  DI =D11/IO23
+   1000 µF  ────────  ┴  ───  ┴   (electrolytic cap across +5V / GND, near the strip)
+   (≥6.3 V)        +      −
+```
+
+**Wiring rules — do not skip:**
+
+1. **Common ground.** Strip GND, SD module GND, the 5 V supply GND and the
+   ESP32 GND must all be tied together. A floating ground = no data / flicker.
+2. **Series resistor on data.** 330–470 Ω in series at the strip's `DIN`
+   protects the first pixel and tames ringing on the fly-wire.
+3. **Bulk capacitor.** ~1000 µF (≥6.3 V) across the strip's `+5V`/`GND`, close
+   to the strip, absorbs inrush when many LEDs switch.
+4. **3.3 V data into a 5 V strip.** The ESP32 drives data at 3.3 V. For a few
+   LEDs on short wires it usually works; for reliability add a level shifter
+   (74AHCT125 / 74HCT245), power the strip at ~4.5 V, or keep the data wire
+   short with the resistor right at `DIN`.
+5. **Power budget.** One WS2812 ≈ 60 mA at full white. The `5V` pin (USB) is
+   fine for ~10–15 LEDs at the default `BRIGHTNESS 128`. For more, feed `+5V`
+   from an external 5 V supply and **still share ground** with the ESP32.
+
+> Full detail (pins to avoid for data, module power variants) is in
+> **[`docs/PINOUT.md`](docs/PINOUT.md)**.
 
 ---
 
