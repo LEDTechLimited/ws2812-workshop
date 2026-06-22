@@ -146,29 +146,26 @@ These are the ESP32's default hardware SPI (VSPI) pins, so the sketch just calls
 output-capable, non-strapping pin).
 
 ```
-                    WeMos D1 R32 (ESP32)
-                 ┌───────────────────────────┐
-   USB / 5V ───▶ │ [USB]                 5V ──┼───────┬─────────────┬───────────►  +5V rail
-                 │                           │       │             │
-                 │                  D13/IO18 ┼──────────────┐      │
-                 │                  D12/IO19 ┼────────────┐ │      │
-                 │                  D11/IO23 ┼──────────┐ │ │      │
-                 │                   D10/IO5 ┼────────┐ │ │ │      │
-                 │                   D2/IO26 ┼──┐     │ │ │ │      │
-                 │                       GND ┼──┼─────┼─┼─┼─┼──┬───┼───────┬─────►  GND rail
-                 └───────────────────────────┘  │     │ │ │ │  │   │       │
-                                  330–470 Ω      │  ┌──┘ │ │ │  │   │       │
-                          ┌────/\/\/\────────────┘  │ ┌──┘ │ │  │   │       │
-                          │                         │ │ ┌──┘ │  │   │       │
-                          ▼ DIN                     ▼ ▼ ▼    ▼  ▼   │       │
-                  ┌───────────────┐         ┌──────────────────────┴──┐    │
-                  │   WS2812      │         │   microSD module (SPI)   │    │
-                  │  +5V  DIN GND │         │  CS  CLK DO  DI   GND VCC│◀───┘ VCC=5V
-                  └───┬───────┬───┘         └──────────────────────────┘
-                  +5V─┘       └─GND            CS =D10/IO5   DO =D12/IO19
-                      │       │                CLK=D13/IO18  DI =D11/IO23
-   1000 µF  ────────  ┴  ───  ┴   (electrolytic cap across +5V / GND, near the strip)
-   (≥6.3 V)        +      −
+   ESP32 (WeMos D1 R32)          microSD module (SPI)
+  +--------------------+         +----------------------+
+  |           D10/IO5  +---------+ CS                   |
+  |          D11/IO23  +---------+ MOSI / DI            |
+  |          D12/IO19  +---------+ MISO / DO            |
+  |          D13/IO18  +---------+ SCK / CLK            |
+  |                5V  +---------+ VCC (5 V)            |
+  |               GND  +---------+ GND                  |
+  |                    |         +----------------------+
+  |                    |
+  |                    |         WS2812 strip
+  |                    |         +----------------------+
+  |           D2/IO26  +--[330R]-+ DIN                  |
+  |                5V  +---------+ +5V                  |
+  |               GND  +---------+ GND                  |
+  +--------------------+         +----------------------+
+
+   [330R] = 330-470 ohm series resistor at the strip's DIN.
+   Also add ~1000 uF (>=6.3 V) across the strip's +5V / GND, near the strip.
+   All grounds (ESP32, SD module, strip, 5 V supply) must be common.
 ```
 
 **Wiring rules — do not skip:**
