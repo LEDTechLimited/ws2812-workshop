@@ -135,7 +135,7 @@ by **GPIO number**, not by the `Dx` label.
 | SD — MOSI         | `D11`      | GPIO23     | microSD `MOSI` / `DI` / `CMD`   |
 | SD — MISO         | `D12`      | GPIO19     | microSD `MISO` / `DO` / `DAT0`  |
 | SD — Clock        | `D13`      | GPIO18     | microSD `SCK` / `CLK`           |
-| SD — Power        | `5V`       | —          | microSD `VCC` (5 V)             |
+| SD — Power        | `5V` / `3V3` | —        | microSD `VCC` (**see note ↓**)  |
 | SD — Ground       | `GND`      | —          | microSD `GND`                   |
 | WS2812 — Data     | `D2`       | GPIO26     | strip `DIN` (via 330–470 Ω)     |
 | WS2812 — Power    | `5V`       | —          | strip `+5V`                     |
@@ -145,6 +145,22 @@ These are the ESP32's default hardware SPI (VSPI) pins, so the sketch just calls
 `SD.begin(5)` — no custom SPI setup. WS2812 data is GPIO26 (a clean,
 output-capable, non-strapping pin).
 
+**SD module power — 3.3 V or 5 V?** A microSD card is a **3.3 V** device and so
+is the ESP32 — **never let 5 V reach an ESP32 pin**. Which `VCC` to use depends
+on your module:
+
+- **Module with a regulator *and* a level-shifter chip** (most "microSD
+  modules" — a 3-pin regulator like `AMS1117` **plus** a buffer like `74VHC125`):
+  power `VCC` at **5 V**. It regulates 3.3 V for the card and returns the SPI
+  lines to the ESP32 at 3.3 V, so 5 V never reaches a GPIO. ✅
+- **Bare module** (just the socket + a few passives; silk says 3.3 V): power
+  `VCC` at **3.3 V** (the `3V3` pin) and wire SPI directly. ⚠️ Giving it 5 V
+  destroys the card and pushes 5 V onto the SPI lines into the ESP32.
+- **Not sure?** Power it up and measure `MISO` (→ GPIO19) at idle: it must read
+  ~3.3 V, **never ~5 V**, before you connect it to the ESP32. (Beware cheap
+  "5 V" modules that level-shift with resistor dividers instead of a buffer
+  chip — they can misbehave on a 3.3 V host.)
+
 ```
    ESP32 (WeMos D1 R32)          microSD module (SPI)
   +--------------------+         +----------------------+
@@ -152,7 +168,7 @@ output-capable, non-strapping pin).
   |          D11/IO23  +---------+ MOSI / DI            |
   |          D12/IO19  +---------+ MISO / DO            |
   |          D13/IO18  +---------+ SCK / CLK            |
-  |                5V  +---------+ VCC (5 V)            |
+  |            5V/3V3  +---------+ VCC                  |
   |               GND  +---------+ GND                  |
   |                    |         +----------------------+
   |                    |
@@ -163,6 +179,7 @@ output-capable, non-strapping pin).
   |               GND  +---------+ GND                  |
   +--------------------+         +----------------------+
 
+   SD VCC: 5 V for regulator+buffer modules, 3.3 V for bare ones (see note above).
    [330R] = 330-470 ohm series resistor at the strip's DIN.
    Also add ~1000 uF (>=6.3 V) across the strip's +5V / GND, near the strip.
    All grounds (ESP32, SD module, strip, 5 V supply) must be common.
@@ -215,7 +232,7 @@ lands on the real show. You do **not** need to "clean" the card first.
 | Symptom | Likely cause |
 |---------|--------------|
 | Strip flashes **red** + on-board LED blinks | Fatal error — open Serial Monitor @115200 for the reason (SD init, no `.LED` file, bad header) |
-| `SD init failed` | Wiring (CS/MOSI/MISO/SCK), card not FAT32, or 5 V/GND to the module |
+| `SD init failed` | Wiring (CS/MOSI/MISO/SCK), card not FAT32, or wrong `VCC` for the module type (regulator+buffer module → 5 V; bare module → 3.3 V — see Wiring note) |
 | Nothing lights | Common ground missing; wrong data pin; strip needs more current than USB gives |
 | Wrong / swapped colours | Gear was not exported as **RGB** pixel order |
 | Garbled / wrong show on a macOS-written card | The real `.LED` is fine — the firmware already skips `._*` AppleDouble files; just make sure your show file is in the card **root** |

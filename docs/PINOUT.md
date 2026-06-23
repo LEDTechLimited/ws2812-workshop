@@ -15,7 +15,7 @@ Uno-style headers.
 | SD — MOSI         | `D11`             | GPIO23     | microSD `MOSI` / `DI` / `CMD`   |
 | SD — MISO         | `D12`             | GPIO19     | microSD `MISO` / `DO` / `DAT0`  |
 | SD — Clock        | `D13`             | GPIO18     | microSD `SCK` / `CLK`           |
-| SD — Power        | `5V`              | —          | microSD `VCC` (5 V)             |
+| SD — Power        | `5V` / `3V3`      | —          | microSD `VCC` (**see note below**) |
 | SD — Ground       | `GND`             | —          | microSD `GND`                   |
 | WS2812 — Data     | `D2`              | GPIO26     | strip `DIN` (via 330–470 Ω)     |
 | WS2812 — Power    | `5V`              | —          | strip `+5V`                     |
@@ -33,7 +33,7 @@ calls `SD.begin(5)` — no custom SPI pin setup needed.
   |          D11/IO23  +---------+ MOSI / DI            |
   |          D12/IO19  +---------+ MISO / DO            |
   |          D13/IO18  +---------+ SCK / CLK            |
-  |                5V  +---------+ VCC (5 V)            |
+  |            5V/3V3  +---------+ VCC                  |
   |               GND  +---------+ GND                  |
   |                    |         +----------------------+
   |                    |
@@ -44,10 +44,31 @@ calls `SD.begin(5)` — no custom SPI pin setup needed.
   |               GND  +---------+ GND                  |
   +--------------------+         +----------------------+
 
+   SD VCC: 5 V for regulator+buffer modules, 3.3 V for bare ones (see below).
    [330R] = 330-470 ohm series resistor at the strip's DIN.
    Also add ~1000 uF (>=6.3 V) across the strip's +5V / GND, near the strip.
    All grounds (ESP32, SD module, strip, 5 V supply) must be common.
 ```
+
+## SD module power — 3.3 V or 5 V?
+
+A microSD card is a **3.3 V** device and so is the ESP32 — **5 V must never
+reach an ESP32 pin** (its GPIOs are not 5 V tolerant). Which `VCC` to use
+depends on the module:
+
+- **Regulator + level-shifter module** (most "microSD modules": a 3-pin
+  regulator such as `AMS1117` **and** a buffer such as `74VHC125` / `SN74LVC125`)
+  — power `VCC` at **5 V**. The `AMS1117` needs ~1.1 V dropout, so 3.3 V in would
+  under-volt the card; at 5 V it makes a clean 3.3 V rail, and the buffer returns
+  the SPI lines (incl. `MISO`) to the ESP32 at 3.3 V. 5 V never reaches a GPIO.
+- **Bare module** (just the card socket + a few passives; silk says 3.3 V) —
+  power `VCC` at **3.3 V** and wire SPI directly. Feeding it 5 V destroys the
+  card and drives 5 V onto the SPI lines into the ESP32.
+- **Unsure / cheap module?** Some low-cost "5 V" modules level-shift with
+  resistor dividers instead of a buffer IC and misbehave on a 3.3 V host. Before
+  trusting one, power it and measure `MISO` (→ GPIO19) at idle: it must read
+  ~3.3 V, never ~5 V. If you have a bare 3.3 V module, prefer it and run
+  everything at 3.3 V — that is the simplest, safest match for the ESP32.
 
 ## Wiring rules (do not skip)
 
