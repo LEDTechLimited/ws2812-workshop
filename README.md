@@ -107,7 +107,7 @@ your **LED count**.
 ### B. Design in Studio
 1. Create a **gear** with the **same LED count** as your pattern.
 2. Leave the gear's **pixel order = RGB** (the firmware assumes RGB — see
-   `docs/LED_FILE_FORMAT.md`).
+   `docs/reference/LED_FILE_FORMAT.md`).
 3. Add **effects** on the sequence timeline.
 4. Open **Sequence Export**, pick your gear, **Export** → you get a
    `S{n}_{name}_{gear}.LED` file (40 fps).
@@ -202,7 +202,7 @@ on your module:
    from an external 5 V supply and **still share ground** with the ESP32.
 
 > Full detail (pins to avoid for data, module power variants) is in
-> **[`docs/PINOUT.md`](docs/PINOUT.md)**.
+> **[`docs/reference/PINOUT.md`](docs/reference/PINOUT.md)**.
 
 ---
 
@@ -221,8 +221,8 @@ metadata blob. The file scan ignores any entry whose name starts with a dot
 (`._*`, `.DS_Store`, `.Spotlight-V100`, `.Trashes`, `.fseventsd`), so it always
 lands on the real show. You do **not** need to "clean" the card first.
 
-- `.LED` format: **[`docs/LED_FILE_FORMAT.md`](docs/LED_FILE_FORMAT.md)**
-- Wiring / pinout: **[`docs/PINOUT.md`](docs/PINOUT.md)**
+- `.LED` format: **[`docs/reference/LED_FILE_FORMAT.md`](docs/reference/LED_FILE_FORMAT.md)**
+- Wiring / pinout: **[`docs/reference/PINOUT.md`](docs/reference/PINOUT.md)**
 - Firmware: **[`LedPlayer/LedPlayer.ino`](LedPlayer/LedPlayer.ino)**
 
 ---

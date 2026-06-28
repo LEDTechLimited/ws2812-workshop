@@ -1,0 +1,20 @@
+name: docs-lint
+
+# Governs the docs structure for EVERY contributor (can't be skipped like a local hook).
+# The checks live in docs/check_layout.sh (closed taxonomy) + docs/check_links.sh (broken
+# links); both are runnable locally too.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Closed-bucket taxonomy
+        run: bash docs/check_layout.sh
+      - name: Broken relative links
+        run: bash docs/check_links.sh
