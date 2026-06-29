@@ -93,7 +93,7 @@ The default sketch parameters work out-of-the-box:
 | `PIN_WS2812` | `26` | WS2812 data → header `D2` |
 | `PIN_SD_CS` | `5` | SD chip-select → header `D10` |
 | `LED_COUNT_OVERRIDE` | `0` | `0` = read LED count from the `.LED` header |
-| `BRIGHTNESS` | `128` | 0–255; keep modest on USB power |
+| `BRIGHTNESS` | `77` | ~30 % (0–255 scale); keep modest on USB power |
 | `FIXED_FILENAME` | `""` | `""` = auto-play first `*.LED` in SD root |
 
 ---
@@ -197,9 +197,10 @@ on your module:
    LEDs on short wires it usually works; for reliability add a level shifter
    (74AHCT125 / 74HCT245), power the strip at ~4.5 V, or keep the data wire
    short with the resistor right at `DIN`.
-5. **Power budget.** One WS2812 ≈ 60 mA at full white. The `5V` pin (USB) is
-   fine for ~10–15 LEDs at the default `BRIGHTNESS 128`. For more, feed `+5V`
-   from an external 5 V supply and **still share ground** with the ESP32.
+5. **Power budget.** One WS2812 ≈ 60 mA at full white. At the default
+   `BRIGHTNESS 77` (~30 %) the `5V` pin (USB) is fine for ~20–25 LEDs. For more
+   LEDs or higher brightness, feed `+5V` from an external 5 V supply and **still
+   share ground** with the ESP32.
 
 > Full detail (pins to avoid for data, module power variants) is in
 > **[`docs/reference/PINOUT.md`](docs/reference/PINOUT.md)**.

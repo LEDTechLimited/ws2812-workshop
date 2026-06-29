@@ -41,9 +41,11 @@
 // to light only the first N pixels of the pattern you hand-built.
 #define LED_COUNT_OVERRIDE  0
 
-// Global brightness 0..255.  A WS2812 at full white draws ~60 mA; keep this
-// modest on USB power.  Raise it once you have a proper 5 V supply.
-#define BRIGHTNESS          128
+// Global brightness 0..255 (scales every pixel: out = value * BRIGHTNESS / 256).
+// Default 77 ≈ 30% — the exported show looks too bright at full output, and a
+// lower level keeps current/heat down on USB power. Raise toward 255 only with
+// a proper 5 V supply.
+#define BRIGHTNESS          77
 
 // "" = auto-play the first *.LED file in the SD root.  Otherwise play this file.
 #define FIXED_FILENAME      ""

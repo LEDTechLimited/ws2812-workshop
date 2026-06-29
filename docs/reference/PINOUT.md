@@ -84,11 +84,11 @@ depends on the module:
    - add a level shifter (74AHCT125 / 74HCT245 are common choices), **or**
    - power the strip from ~4.5 V so its logic-high threshold drops, **or**
    - keep the data wire short and put the series resistor right at `DIN`.
-5. **Power budget.** One WS2812 ≈ 60 mA at full white. The D1 R32's `5V` pin
-   (USB-powered) is fine for ~10–15 LEDs at the default `BRIGHTNESS 128`. For
-   more LEDs or full brightness, feed `+5V` from an external 5 V supply and
-   **still share ground** with the ESP32. Do not back-feed a big supply into
-   USB; power the strip directly from the external supply's 5 V.
+5. **Power budget.** One WS2812 ≈ 60 mA at full white. At the default
+   `BRIGHTNESS 77` (~30 %) the D1 R32's `5V` pin (USB-powered) is fine for
+   ~20–25 LEDs. For more LEDs or higher brightness, feed `+5V` from an external
+   5 V supply and **still share ground** with the ESP32. Do not back-feed a big
+   supply into USB; power the strip directly from the external supply's 5 V.
 
 ## Pins reserved / avoid for WS2812 data
 
