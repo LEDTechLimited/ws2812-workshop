@@ -222,6 +222,20 @@ metadata blob. The file scan ignores any entry whose name starts with a dot
 (`._*`, `.DS_Store`, `.Spotlight-V100`, `.Trashes`, `.fseventsd`), so it always
 lands on the real show. You do **not** need to "clean" the card first.
 
+**Status colours — read the strip itself.** During hands-on you can tell what's
+wrong from the LEDs alone, no laptop needed:
+
+| The strip shows… | Meaning |
+|---|---|
+| **your show** (loops) | all good |
+| **solid white** | SD card problem — not detected, wiring, or not FAT32 |
+| **rainbow fade** | SD is fine, but there is no `.LED` file in the card root |
+| **blinking red** (+ on-board LED) | a `.LED` file is present but bad / unreadable (or out of memory) |
+
+The rainbow fade reuses the LDPS node's "identify" hue-rotation. Status patterns
+light up to `STATUS_LED_COUNT` (default 30) LEDs since the real count isn't known
+until a valid file is read.
+
 - `.LED` format: **[`docs/reference/LED_FILE_FORMAT.md`](docs/reference/LED_FILE_FORMAT.md)**
 - Wiring / pinout: **[`docs/reference/PINOUT.md`](docs/reference/PINOUT.md)**
 - Firmware: **[`LedPlayer/LedPlayer.ino`](LedPlayer/LedPlayer.ino)**
@@ -232,8 +246,9 @@ lands on the real show. You do **not** need to "clean" the card first.
 
 | Symptom | Likely cause |
 |---------|--------------|
-| Strip flashes **red** + on-board LED blinks | Fatal error — open Serial Monitor @115200 for the reason (SD init, no `.LED` file, bad header) |
-| `SD init failed` | Wiring (CS/MOSI/MISO/SCK), card not FAT32, or wrong `VCC` for the module type (regulator+buffer module → 5 V; bare module → 3.3 V — see Wiring note) |
+| **Solid white** strip | SD problem — wiring (CS/MOSI/MISO/SCK), card not FAT32, or wrong `VCC` for the module type (regulator+buffer module → 5 V; bare module → 3.3 V — see Wiring note) |
+| **Rainbow fade** strip | SD mounts but no `.LED` in root — copy your file (or check it's not hidden / in a subfolder) |
+| **Blinking red** + on-board LED | `.LED` present but bad/corrupt/unreadable, or OOM — open Serial Monitor @115200 for the exact reason |
 | Nothing lights | Common ground missing; wrong data pin; strip needs more current than USB gives |
 | Wrong / swapped colours | Gear was not exported as **RGB** pixel order |
 | Garbled / wrong show on a macOS-written card | The real `.LED` is fine — the firmware already skips `._*` AppleDouble files; just make sure your show file is in the card **root** |

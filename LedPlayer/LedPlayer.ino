@@ -19,6 +19,13 @@
  *   byte 2..3 : frame interval (ms)  (uint16, BIG-endian; Studio = 25 → 40 fps)
  *   byte 4..  : frames; each frame = ledCount * 3 bytes, one RGB triple/LED
  *   The pixel bytes are in the gear's pixel order — KEEP THE GEAR AT "RGB".
+ *
+ * Status colours (so a problem is obvious during hands-on, with no laptop):
+ *   - SOLID WHITE       : SD card problem (not detected / wiring / not FAT32).
+ *   - RAINBOW fade       : SD OK, but no ".LED" file in the card root.
+ *   - BLINKING RED (+LED): a ".LED" file is present but bad/unreadable, or OOM.
+ *   (normal play = your show; the rainbow fade reuses the LDPS node's
+ *    "identify" hue-rotation logic.)
  * ------------------------------------------------------------------
  */
 
@@ -50,6 +57,12 @@
 // "" = auto-play the first *.LED file in the SD root.  Otherwise play this file.
 #define FIXED_FILENAME      ""
 
+// How many LEDs to light for the status patterns (white / rainbow) when the real
+// count is not known yet (SD/file errors happen before the header is read). If
+// LED_COUNT_OVERRIDE is set, that is used instead. Kept modest so a solid-white
+// fault on USB power does not brown out the board.
+#define STATUS_LED_COUNT    30
+
 // ════════════════════════ Internals ══════════════════════════════
 
 typedef NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod> StripBus;
@@ -69,7 +82,9 @@ uint32_t   nextFrameAt = 0;
 
 static uint16_t be16(const uint8_t* p) { return (uint16_t(p[0]) << 8) | p[1]; }
 static bool     findShowFile(char* out, size_t outLen);
-static void     fatal(const char* msg);
+static void     haltWhite(const char* msg);    // SD problem
+static void     haltRainbow(const char* msg);  // no .LED file
+static void     haltError(const char* msg);    // .LED present but bad / OOM
 
 void setup() {
   Serial.begin(115200);
@@ -77,43 +92,44 @@ void setup() {
   Serial.println("\n[Player] WS2812 .LED player booting...");
 
   // 1) microSD over the default VSPI bus (SCK18 / MISO19 / MOSI23), CS = GPIO5.
-  if (!SD.begin(PIN_SD_CS)) fatal("SD init failed - check wiring / card / format (FAT32)");
+  //    Fault here = white (the card is unreadable, so we can't know more).
+  if (!SD.begin(PIN_SD_CS)) haltWhite("SD init failed - check wiring / card / format (FAT32)");
   Serial.println("[Player] SD card OK");
 
-  // 2) Find the show file.
+  // 2) Find the show file. No file = rainbow (SD works, just nothing to play).
   char path[64];
   if (strlen(FIXED_FILENAME) > 0) {
     snprintf(path, sizeof(path), "/%s", FIXED_FILENAME);
   } else if (!findShowFile(path, sizeof(path))) {
-    fatal("No *.LED file found in SD root");
+    haltRainbow("No *.LED file found in SD root");
   }
   Serial.printf("[Player] Playing: %s\n", path);
 
   showFile = SD.open(path, FILE_READ);
-  if (!showFile) fatal("Cannot open show file");
+  if (!showFile) haltError("Cannot open show file");
 
-  // 3) Read the 4-byte header.
+  // 3) Read the 4-byte header. A present-but-bad file = red.
   uint8_t hdr[4];
-  if (showFile.read(hdr, 4) != 4) fatal("File too small (no header)");
+  if (showFile.read(hdr, 4) != 4) haltError("File too small (no header)");
   fileLeds = be16(&hdr[0]);
   frameMs  = be16(&hdr[2]);
   if (frameMs  == 0)    frameMs = 25;     // guard against a 0 = infinite-fps file
-  if (fileLeds == 0)    fatal("Header LED count is 0");
-  if (fileLeds > 2000)  fatal("Header LED count implausibly large - wrong/corrupt file?");
+  if (fileLeds == 0)    haltError("Header LED count is 0");
+  if (fileLeds > 2000)  haltError("Header LED count implausibly large - wrong/corrupt file?");
 
   ledCount   = (LED_COUNT_OVERRIDE > 0) ? (uint16_t)LED_COUNT_OVERRIDE : fileLeds;
   frameBytes = (uint32_t)fileLeds * 3;    // frame layout always follows the FILE's count
 
   uint32_t dataBytes = showFile.size() - DATA_OFFSET;
   totalFrames = dataBytes / frameBytes;
-  if (totalFrames == 0) fatal("No frames in file");
+  if (totalFrames == 0) haltError("No frames in file");
 
   Serial.printf("[Player] fileLEDs=%u  drivingLEDs=%u  frame=%ums (%ufps)  frames=%lu\n",
                 fileLeds, ledCount, frameMs, 1000u / frameMs, (unsigned long)totalFrames);
 
   // 4) Allocate the per-frame read buffer and the strip.
   frameBuf = (uint8_t*)malloc(frameBytes);
-  if (!frameBuf) fatal("Out of memory for frame buffer");
+  if (!frameBuf) haltError("Out of memory for frame buffer");
 
   strip = new StripBus(ledCount, PIN_WS2812);
   strip->Begin();
@@ -214,15 +230,71 @@ static bool findShowFile(char* out, size_t outLen) {
   return found;
 }
 
-// Unrecoverable error: report on serial, then flash the strip red (and the
-// on-board LED) forever so the failure is visible without a serial monitor.
-static void fatal(const char* msg) {
-  Serial.printf("[Player] FATAL: %s\n", msg);
+// ─────────────────── Status / fault indicators ───────────────────
+// These are TERMINAL states (the board must be fixed + power-cycled). The real
+// LED count is unknown when SD/file errors occur — the strip is created here
+// with STATUS_LED_COUNT (or LED_COUNT_OVERRIDE if set) just for the indicator.
+// Each boot creates the strip exactly once: either here, or in setup() for play.
+
+static void ensureStatusStrip() {
+  if (strip) return;
+  uint16_t n = (LED_COUNT_OVERRIDE > 0) ? (uint16_t)LED_COUNT_OVERRIDE : STATUS_LED_COUNT;
+  strip = new StripBus(n, PIN_WS2812);
+  strip->Begin();
+}
+
+// HSV→RGB, all pixels one colour, hue rotating with time (~3 s/cycle).
+// Ported from the LDPS Edge-Node "identify" tick (playback_engine.cpp).
+static void rainbowColor(uint32_t now, uint8_t& r, uint8_t& g, uint8_t& b) {
+  uint16_t hue       = ((now / 8) * 170) & 0xFFFF;   // ~3 s full cycle
+  uint8_t  region    = hue / 10923;
+  uint16_t remainder = (hue - region * 10923) * 6;
+  uint8_t  q = 255 - (remainder >> 8);
+  uint8_t  t = (remainder >> 8);
+  switch (region) {
+    case 0: r = 255; g = t;   b = 0;   break;
+    case 1: r = q;   g = 255; b = 0;   break;
+    case 2: r = 0;   g = 255; b = t;   break;
+    case 3: r = 0;   g = q;   b = 255; break;
+    case 4: r = t;   g = 0;   b = 255; break;
+    default:r = 255; g = 0;   b = q;   break;
+  }
+}
+
+// SD problem → SOLID WHITE (scaled by BRIGHTNESS so it stays power-safe).
+static void haltWhite(const char* msg) {
+  Serial.printf("[Player] SD FAULT (solid white): %s\n", msg);
+  ensureStatusStrip();
+  strip->ClearTo(RgbColor(BRIGHTNESS, BRIGHTNESS, BRIGHTNESS));
+  strip->Show();
+  for (;;) { strip->Show(); delay(1000); }   // hold + periodic re-latch
+}
+
+// No .LED file → RAINBOW fade (node "identify" hue rotation).
+static void haltRainbow(const char* msg) {
+  Serial.printf("[Player] NO .LED FILE (rainbow): %s\n", msg);
+  ensureStatusStrip();
+  for (;;) {
+    uint8_t r, g, b;
+    rainbowColor(millis(), r, g, b);
+    r = ((uint16_t)r * BRIGHTNESS) >> 8;
+    g = ((uint16_t)g * BRIGHTNESS) >> 8;
+    b = ((uint16_t)b * BRIGHTNESS) >> 8;
+    strip->ClearTo(RgbColor(r, g, b));
+    strip->Show();
+    delay(16);   // ~60 fps colour fade
+  }
+}
+
+// .LED present but bad/unreadable (or OOM) → BLINKING RED + on-board LED.
+static void haltError(const char* msg) {
+  Serial.printf("[Player] FILE ERROR (blinking red): %s\n", msg);
+  ensureStatusStrip();
   pinMode(LED_BUILTIN, OUTPUT);
   for (;;) {
-    if (strip) { strip->ClearTo(RgbColor(40, 0, 0)); strip->Show(); }
+    strip->ClearTo(RgbColor(BRIGHTNESS, 0, 0)); strip->Show();
     digitalWrite(LED_BUILTIN, HIGH); delay(200);
-    if (strip) { strip->ClearTo(RgbColor(0)); strip->Show(); }
+    strip->ClearTo(RgbColor(0));                strip->Show();
     digitalWrite(LED_BUILTIN, LOW);  delay(200);
   }
 }
