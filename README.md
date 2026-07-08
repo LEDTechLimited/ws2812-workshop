@@ -129,20 +129,37 @@ Fly-wire the microSD module (SPI) and the WS2812 strip to the Uno-style headers.
 Most "ESP32 UNO" clones share this mapping — if your silk-screen differs, match
 by **GPIO number**, not by the `Dx` label.
 
-| Function          | D1 R32 pin | ESP32 GPIO | Wire to                         |
-|-------------------|------------|-----------:|---------------------------------|
-| SD — Chip Select  | `D10`      | GPIO5      | microSD `CS` / `SS`             |
-| SD — MOSI         | `D11`      | GPIO23     | microSD `MOSI` / `DI` / `CMD`   |
-| SD — MISO         | `D12`      | GPIO19     | microSD `MISO` / `DO` / `DAT0`  |
-| SD — Clock        | `D13`      | GPIO18     | microSD `SCK` / `CLK`           |
-| SD — Power        | `5V` / `3V3` | —        | microSD `VCC` (**see note ↓**)  |
-| SD — Ground       | `GND`      | —          | microSD `GND`                   |
-| WS2812 — Data     | `D2`       | GPIO26     | strip `DIN` (via 330–470 Ω)     |
-| WS2812 — Power    | `5V`       | —          | strip `+5V`                     |
-| WS2812 — Ground   | `GND`      | —          | strip `GND`                     |
+> **New to electronics?** Read each table left → right: find the pin **printed on
+> the module**, run a jumper wire to the **D1 R32 pin** in the next column. That's
+> it. The rows are listed in the **same top-to-bottom order as the pins on your
+> microSD module** (`CS → SCK → MOSI → MISO → VCC → GND`), so you can just work
+> straight down the header. If any pin on your module has a different name, match
+> it using the *"also printed as"* column.
 
-These are the ESP32's default hardware SPI (VSPI) pins, so the sketch just calls
-`SD.begin(5)` — no custom SPI setup. WS2812 data is GPIO26 (a clean,
+### 1. microSD module → ESP32
+
+| microSD pin (on the board) | also printed as | Wire to D1 R32 pin | ESP32 GPIO | What it's for                    |
+|----------------------------|-----------------|--------------------|-----------:|----------------------------------|
+| `CS`                       | `SS`            | `D10`              | GPIO5      | Chip Select — "talk to this card"|
+| `SCK`                      | `CLK`           | `D13`              | GPIO18     | Clock — SPI timing               |
+| `MOSI`                     | `DI` / `CMD`    | `D11`              | GPIO23     | Data: ESP32 → card               |
+| `MISO`                     | `DO` / `DAT0`   | `D12`              | GPIO19     | Data: card → ESP32               |
+| `VCC`                      | `5V` / `3.3V`   | `5V` **or** `3V3`  | —          | Power (**see note ↓** — pick one)|
+| `GND`                      | `G`             | `GND`              | —          | Ground (0 V reference)           |
+
+### 2. WS2812 strip → ESP32
+
+| WS2812 pin (on the strip)  | also printed as | Wire to D1 R32 pin | ESP32 GPIO | What it's for                    |
+|----------------------------|-----------------|--------------------|-----------:|----------------------------------|
+| `DIN`                      | `DI` / `Din`    | `D2`               | GPIO26     | Data in — **via a 330–470 Ω resistor** |
+| `+5V`                      | `5V` / `VCC`    | `5V`               | —          | Power                            |
+| `GND`                      | `G`             | `GND`              | —          | Ground (0 V reference)           |
+
+> ⚠️ On the strip, wire into the **input** end — look for the arrows printed on
+> the strip pointing **away** from where you connect. Data only flows one way.
+
+These SD pins are the ESP32's default hardware SPI (VSPI) pins, so the sketch just
+calls `SD.begin(5)` — no custom SPI setup. WS2812 data is GPIO26 (a clean,
 output-capable, non-strapping pin).
 
 **SD module power — 3.3 V or 5 V?** A microSD card is a **3.3 V** device and so
@@ -165,9 +182,9 @@ on your module:
    ESP32 (WeMos D1 R32)          microSD module (SPI)
   +--------------------+         +----------------------+
   |           D10/IO5  +---------+ CS                   |
+  |          D13/IO18  +---------+ SCK / CLK            |
   |          D11/IO23  +---------+ MOSI / DI            |
   |          D12/IO19  +---------+ MISO / DO            |
-  |          D13/IO18  +---------+ SCK / CLK            |
   |            5V/3V3  +---------+ VCC                  |
   |               GND  +---------+ GND                  |
   |                    |         +----------------------+
